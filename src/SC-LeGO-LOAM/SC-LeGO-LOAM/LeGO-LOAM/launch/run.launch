@@ -1,0 +1,34 @@
+<launch>
+   <!-- SC-LEGO-LOAM 的launch文件-->
+    <!--- Sim Time 如果是仿真则为真，否则为假-->
+    <param name="/use_sim_time" value="false" />
+    <!--- Run Rviz　运行rviz,制定默认的rviz文件-->
+    <node pkg="rviz" type="rviz" name="rviz" args="-d $(find lego_loam)/launch/test.rviz" />
+
+    <!--- TF 坐标转换-->
+    <node pkg="tf" type="static_transform_publisher" name="camera_init_to_map"  args="0 0 0 1.570795   0        1.570795 /map    /camera_init 10" />
+    <node pkg="tf" type="static_transform_publisher" name="base_link_to_camera" args="0 0 0 -1.570795 -1.570795 0        /camera /base_link   10" />
+
+    <!---  LeGO-LOAM 运行lego-loam  -->    
+
+    <!---  预处理(对激光雷达数据):主要包括激光雷达数据获取、点云数据分割、点云类别标注、数据发布 -->  
+    <node pkg="lego_loam" type="imageProjection"    name="imageProjection"    output="screen"/>
+    <!---  特征提取 : -->  
+    <node pkg="lego_loam" type="featureAssociation" name="featureAssociation" output="screen"/>    
+    <!---   地图优化部分，SC重点：使用ScanContext来实现scan-to-map的匹配，并检测回环以及进行优化。  -->   
+    <node pkg="lego_loam" type="mapOptmization"     name="mapOptmization"     output="screen"/>
+    <!---  数据坐标系的转换  -->    
+    <node pkg="lego_loam" type="transformFusion"    name="transformFusion"    output="screen"/>
+
+　<!--  SC-LEGO-LOAM是在原先lego-loam使用gtsam作回环检测并作图优化 的基础上改成了s c回环检测来降低前两个节点累计的误差，
+　　　　　LEGO-LOAM本质上仍然是基于欧式距离的回环检测，不存在全局描述子-->
+　<!--　 预处理(对激光雷达数据):包括激光雷达数据获取、点云数据分割出地面和非地面部分、点云分类、数据发布 -->  
+    <!-- 　特征提取部分用来订阅了上一节点发出来的分割出来的点云，点云的属性，外点以及IMU消息，并设置了回调函数。
+        　　其中IMU消息的订阅函数从IMU数据中提取出姿态，角速度和线加速度，其中姿态用来消除重力对线加速度的影响。
+        　　然后函数FeatureAssociation::AccumulateIMUShiftAndRotation用来做积分，包括根据姿态，将加速度往世界坐标系下进行投影。
+        　　再根据匀加速度运动模型积分得到速度和位移，同时，对角速度也进行了积分-->
+
+    <!-- 在预处理和特征提取部分已经完成了一个激光雷达里程计该做的处理（点云预处理，连续帧匹配计算出激光里程计信息）。
+            　但是这个过程中误差被逐渐累积起来，为此我们需要通过回环检测来减小误差，因此在地图优化部分,需要通过回环检测来减小误差
+    -->  
+</launch>
